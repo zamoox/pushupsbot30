@@ -8,7 +8,7 @@ const getUserContext = async (userId, userName = 'Анонім') => {
 
     const personalDay = getUserDaysPassed(timezone);
 
-    const personalTarget = getTargetForToday(personalDay);
+    const personalTarget = getTargetForToday(personalDay, user?.mode || 'normal');
 
     return { 
         user, 

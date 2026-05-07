@@ -44,9 +44,9 @@ bot.on(['video', 'video_note'], async (ctx) => {
         const currentCompleted = user ? user.completed : 0;
         const isDoingChallenge = user && user.canRestore;
 
-        // if (currentCompleted >= personalDay && !isDoingChallenge) {
-        //     return sendReply(ctx, MESSAGES.video.alreadyDone(userName, currentCompleted, personalDay));
-        // }
+        if (currentCompleted >= personalDay && !isDoingChallenge) {
+            return sendReply(ctx, MESSAGES.video.alreadyDone(userName, currentCompleted, personalDay));
+        }
 
         // Визначаємо, чи є борг 2+ дні на момент завантаження
         const isCurrentlyDebtor = (personalDay - currentCompleted) >= 2;
@@ -58,7 +58,6 @@ bot.on(['video', 'video_note'], async (ctx) => {
             
             const update = {
                 $set: { 
-                    name: userName,
                     currentStreak: newStreak,
                     maxStreak: newMaxStreak,
                     isBroken: isCurrentlyDebtor || (user?.isBroken ?? false)
@@ -384,17 +383,27 @@ bot.command(['start', 'mode'], async (ctx) => {
 
 // Обробка натискання кнопок
 bot.action(/setmode_(.+)/, async (ctx) => {
-    const newMode = ctx.match[1]; // easy, normal або hard
+    const newMode = ctx.match[1];
     const userId = ctx.from.id;
+    const userName = ctx.from.first_name || 'Атлет'; // Беремо актуальне ім'я з ТГ
 
     try {
-        await User.updateOne({ userId }, { $set: { mode: newMode } }, { upsert: true });
+        await User.updateOne(
+            { userId }, 
+            { 
+                $set: { 
+                    mode: newMode,
+                    name: userName // Зберігаємо ім'я в документ юзера
+                } 
+            }, 
+            { upsert: true }
+        );
         
         await ctx.answerCbQuery(`Режим ${newMode} обрано!`);
         await ctx.editMessageText(MESSAGES.settings.modeSelected(newMode), { parse_mode: 'HTML' });
     } catch (e) {
         console.error(e);
-        await ctx.answerCbQuery("Помилка при зміні режиму.");
+        await ctx.answerCbQuery("Помилка при збереженні.");
     }
 });
 
