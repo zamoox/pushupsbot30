@@ -18,24 +18,25 @@ const getTargetForToday = (day, mode = 'normal') => {
     const d = parseInt(day);
     
     const settings = {
-        easy:   { base: 5,  step: 1 },
-        normal: { base: 10, step: 1 },
-        hard:   { base: 10, step: 2 }
+        easy:   { base: 5,  step: 1, period: 3 }, // Хвиля 3 дні
+        normal: { base: 10, step: 1, period: 4 }, // Хвиля 4 дні
+        hard:   { base: 10, step: 2, period: 4 }  // Хвиля 4 дні
     };
 
-    const { base, step } = settings[mode] || settings.normal;
+    const { base, step, period } = settings[mode] || settings.normal;
+    const WAVE_THRESHOLD = 15; // Поріг активації відкатів
 
-    // 1. Рахуємо ціль так, ніби відкату немає (лінійний прогрес)
+    // 1. Рахуємо лінійну ціль
     const linearTarget = base + (d - 1) * step;
 
-    // 2. Логіка "М'якого відкату"
-    if (d % 4 === 0) {
-        // Беремо ціль попереднього дня (d-1) і ділимо на 2
+    // 2. Перевіряємо умови для відкату:
+    // - День кратний періоду (3 або 4)
+    // - Поточна лінійна ціль БІЛЬША за поріг (15)
+    if (d % period === 0 && linearTarget > WAVE_THRESHOLD) {
         const previousDayTarget = base + (d - 2) * step;
         return Math.max(base, Math.floor(previousDayTarget / 2));
     }
 
-    // 3. Для звичайних днів повертаємо лінійний прогрес
     return linearTarget;
 };
 
