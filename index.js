@@ -398,6 +398,32 @@ bot.action(/setmode_(.+)/, async (ctx) => {
     }
 });
 
+bot.command('me', async (ctx) => {
+    try {
+        const userId = ctx.from.id;
+        const userName = ctx.from.first_name || 'Анонім';
+
+        // Отримуємо контекст юзера (база, режим, поточний день)
+        const { user, personalDay, timezone } = await getUserContext(userId, userName);
+
+        if (!user) {
+            return ctx.reply("Спочатку обери режим за допомогою /mode 🦾");
+        }
+
+        // Розраховуємо цілі
+        const currentTarget = getTargetForToday(personalDay, user.mode);
+        const nextTarget = getTargetForToday(personalDay + 1, user.mode);
+
+        const msg = MESSAGES.personal.card(user, personalDay, currentTarget, nextTarget);
+
+        await ctx.reply(msg, { parse_mode: 'HTML' });
+    } catch (e) {
+        console.error('Помилка в команді /me:', e);
+        ctx.reply("❌ Не вдалося завантажити твій профіль.");
+    }
+});
+
+
 // --- 7. ЗАПУСК ---
 bot.launch();
 console.log(`🚀 Бот стартує в режимі: ${testMode ? 'TEST' : 'PRODUCTION'}`);
