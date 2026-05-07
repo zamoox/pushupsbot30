@@ -17,7 +17,10 @@ const userSchema = new mongoose.Schema({
     activePollId: { type: String, default: null },
 
     //Персональна таймазона для тих хто в різних часових поясах
-    timezone: { type: String, default: 'Europe/Kyiv' }
+    timezone: { type: String, default: 'Europe/Kyiv' },
+
+    //Режим віджимань
+    mode: { type: String, enum: ['easy', 'normal', 'hard'], default: 'normal' }
 
 });
 

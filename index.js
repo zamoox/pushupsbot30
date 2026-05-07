@@ -138,7 +138,12 @@ bot.command('stats', async (ctx) => {
     try {
         // Отримуємо загальний день (враховуючи ліміт)
         const daysPassed = getUserDaysPassed('Europe/Kyiv');
-        const targetToday = getTargetForToday(daysPassed);
+
+        const allTargets = {
+            easy: getTargetForToday(daysPassed, 'easy'),
+            normal: getTargetForToday(daysPassed, 'normal'),
+            hard: getTargetForToday(daysPassed, 'hard')
+        };
         
         let users = await User.find();
 
@@ -176,7 +181,7 @@ bot.command('stats', async (ctx) => {
         });
 
         // 4. Формуємо повідомлення (використовуємо звичайний for, бо дані вже розраховані)
-        let msg = MESSAGES.stats.statsHeader(daysPassed, targetToday);
+        let msg = MESSAGES.stats.statsHeader(daysPassed, allTargets);
 
         if (users.length === 0) {
             msg += MESSAGES.stats.noStats;
@@ -359,6 +364,37 @@ bot.action(/vote_(yes|no)_(\d+)/, async (ctx) => {
         await User.updateOne({ userId: targetUserId }, { $set: { canRestore: false, activeChallenge: null } });
         await ctx.editMessageText(MESSAGES.challenge.loss + `\n(Скасовано: ${voterName} ❌)`, { parse_mode: 'HTML' });
         return ctx.answerCbQuery(MESSAGES.challenge.cancelAttempt);
+    }
+});
+
+bot.command(['start', 'mode'], async (ctx) => {
+    await ctx.reply(MESSAGES.settings.chooseMode, {
+        parse_mode: 'HTML',
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: "🟢 EASY", callback_data: "setmode_easy" },
+                    { text: "🟡 NORMAL", callback_data: "setmode_normal" },
+                    { text: "🔴 HARD", callback_data: "setmode_hard" }
+                ]
+            ]
+        }
+    });
+});
+
+// Обробка натискання кнопок
+bot.action(/setmode_(.+)/, async (ctx) => {
+    const newMode = ctx.match[1]; // easy, normal або hard
+    const userId = ctx.from.id;
+
+    try {
+        await User.updateOne({ userId }, { $set: { mode: newMode } }, { upsert: true });
+        
+        await ctx.answerCbQuery(`Режим ${newMode} обрано!`);
+        await ctx.editMessageText(MESSAGES.settings.modeSelected(newMode), { parse_mode: 'HTML' });
+    } catch (e) {
+        console.error(e);
+        await ctx.answerCbQuery("Помилка при зміні режиму.");
     }
 });
 

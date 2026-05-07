@@ -48,8 +48,16 @@ const MESSAGES = {
         noCaption: "❌ Братику, ти забув головне! Напиши **кількість віджимань** цифрами у підписі (caption) до відео, бо мої нейромережі ще не вміють рахувати по відео."
     },
     stats: {
-        statsHeader: (day, target) => 
-            `🏆 <b>ТАБЛИЦЯ ТИТАНІВ. День ${day}/${CHALLENGE_LIMIT} \n${ICON.TARGET}</b> Ціль на сьогодні: <b>${target} раз</b>\n--------------------------\n`,
+        statsHeader: (day, targets) => {
+            // targets — це тепер об'єкт з цілями для кожного режиму
+            return `🏆 ТАБЛИЦЯ ЛІДЕРІВ \n<b>( День ${day} / ${CHALLENGE_LIMIT} )</b>\n` +
+                `--------------------------\n` +
+                `🎯 <b>Цілі на сьогодні:</b>\n` +
+                `🟢 Easy: <b>${targets.easy}</b>  \n` +
+                `🟡 Normal: <b>${targets.normal}</b>  \n` +
+                `🔴 Hard: <b>${targets.hard}</b>\n` +
+                `--------------------------\n`;
+        },
         
         userIcon: (isDebtor, position) => isDebtor ? ICON.DEBTOR : 
             (position === 0 ? ICON.MEDALS[0] : position === 1 ? ICON.MEDALS[1] : position === 2 ? ICON.MEDALS[2] : ICON.DEFAULT),
@@ -58,15 +66,25 @@ const MESSAGES = {
 
         userStreak: (u) => (!u.isBroken ? ` ${u.currentStreak}🔥` : ` ${u.currentStreak}`),
 
+        userModeTag: (mode) => {
+            const modes = {
+                easy: '🟢',
+                normal: '🟡',
+                hard: '🔴'
+            };
+            return modes[mode] || '💀';
+        },
+
         userInfo: (user, position, isDebtor, diff, personalDays) => {
             const userIcon = MESSAGES.stats.userIcon(isDebtor, position);
             const debtorText = MESSAGES.stats.userDebtorText(isDebtor, diff);
             const userStreak = MESSAGES.stats.userStreak(user);
+            const modeTag = MESSAGES.stats.userModeTag(user.mode); // Отримуємо емодзі режиму
             const total = user.totalReps || 0; 
             
-            return `${userIcon} <b>${user.name || 'Анонім'}</b>${debtorText}\n` +
-                   `└ Днів: ${user.completed}/${personalDays} | ${ICON.RECORD}: ${user.maxStreak || 0} | Стрік:${userStreak}\n` +
-                   `└ Віджався: <b>${total} разів</b>\n\n`;
+            return `${userIcon}${modeTag} <b>${user.name || 'Анонім'}</b>${debtorText}\n` +
+                `└ Днів: ${user.completed}/${personalDays} | ${ICON.RECORD}: ${user.maxStreak || 0} | Стрік:${userStreak}\n` +
+                `└ Віджався: <b>${total} разів</b>\n\n`;
         },
 
         remindHeader: (target) => 
@@ -135,6 +153,45 @@ const MESSAGES = {
 
         offerRestore: `⚡️ <b>Карма очищена! (Борги закрито)</b>\nБажаєш повернути свій вогник 🔥 через ритуал спецзавдання?`,
     },
+    personal: {
+        card: (u, day, target, nextTarget) => {
+            const modeEmoji = MESSAGES.stats.userModeTag(u.mode);
+            const streakIcon = MESSAGES.video.icon(u.isBroken);
+            
+            return `👤 <b>ПЕРСОНАЛЬНИЙ ПРОФІЛЬ</b>\n\n` +
+                `<b>Атлет:</b> ${u.name}\n` +
+                `<b>Режим:</b> ${modeEmoji} ${u.mode.toUpperCase()}\n` +
+                `--------------------------\n` +
+                `📈 <b>День:</b> ${day}/${CHALLENGE_LIMIT}\n` +
+                `🎯 <b>Ціль на сьогодні:</b> <b>${target} разів</b>\n` +
+                `⏭ <b>Завтра буде:</b> ${nextTarget} разів\n` +
+                `--------------------------\n` +
+                `🔥 <b>Поточний стрік:</b> ${u.currentStreak} ${streakIcon}\n` +
+                `🏆 <b>Рекордний стрік:</b> ${u.maxStreak || 0}\n` +
+                `💪 <b>Всього віджався:</b> ${u.totalReps || 0}\n` +
+                `✅ <b>Виконано днів:</b> ${u.completed}\n\n` +
+                `<i>Використовуй /mode, щоб змінити складність.</i>`;
+        }
+    },
+    settings: {
+        chooseMode: "⚙️ <b>ОБЕРИ СВІЙ РІВЕНЬ СКЛАДНОСТІ</b>\n\n" +
+                "Від цього залежить твоя щоденна норма та швидкість прогресу. " +
+                "Хвильова система працює всюди: кожен 4-й день — розвантаження (50% від норми).\n\n" +
+                "🟢 <b>EASY</b>\n" +
+                "└ Старт: 5 разів\n" +
+                "└ Прогрес: +1 щодня\n" +
+                "└ <i>Для тих, хто тільки прокинувся або відновлюється.</i>\n\n" +
+                "🟡 <b>NORMAL</b>\n" +
+                "└ Старт: 10 разів\n" +
+                "└ Прогрес: +1 щодня\n" +
+                "└ <i>Золотий стандарт. Стабільний розвиток.</i>\n\n" +
+                "🔴 <b>HARD</b>\n" +
+                "└ Старт: 10 разів\n" +
+                "└ Прогрес: +2 щодня\n" +
+                "└ <i>Шлях титана. Тільки для тих, хто готовий штовхати планету.</i>",
+    
+        modeSelected: (mode) => `✅ <b>Режим ${mode.toUpperCase()} активовано!</b>\nТвій план оновлено. Вдалого тренування! 🦾`
+    }
 }
 
 module.exports = {
