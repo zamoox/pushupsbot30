@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
     userId: { type: Number, unique: true },
     name: String,
     completed: { type: Number, default: 0 },
-    totalSeconds: { type: Number, default: 0 },
+    totalReps: { type: Number, default: 0 },
     maxStreak: { type: Number, default: 0 },
     currentStreak: { type: Number, default: 0 },
     isBroken: { type: Boolean, default: false },

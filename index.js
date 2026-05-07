@@ -2,10 +2,9 @@ const { Telegraf } = require('telegraf');
 require('dotenv').config();
 const startServer = require('./server');
 const User = require('./models/User');
-const Config = require('./models/Config');
 const connectDB = require('./config/db');
 const { getUserContext } = require('./utils/userContext');
-const { getUserDaysPassed, getTargetForToday } = require('./utils/dates');
+const { getUserDaysPassed, getTargetForToday, CHALLENGE_LIMIT } = require('./utils/dates');
 const { getRandomChallenge } = require('./utils/challenges');
 const { MESSAGES, sendReply } = require('./utils/messages');
 
@@ -13,7 +12,7 @@ const { MESSAGES, sendReply } = require('./utils/messages');
 startServer();
 
 // 2. НАЛАШТУВАННЯ РЕЖИМУ
-const testMode = true; // Змінюй на false для продакшену
+const testMode = process.env.NODE_ENV !== 'production'; 
  
 // 3. ОТРИМАННЯ ТОКЕНУ БОТА ТА БАЗИ ДАНИХ
 const { token, mongoUri } =  testMode ? 
@@ -31,26 +30,28 @@ bot.on(['video', 'video_note'], async (ctx) => {
         const userId = ctx.from.id;
         const userName = ctx.from.first_name || 'Анонім';
 
-        const { user, personalTarget, personalDay } = await getUserContext(userId, userName);
-
+        const caption = ctx.message.caption || ""; 
+        const match = caption.match(/\d+/); 
+        const reps = match ? parseInt(match[0], 10) : 0; 
         const video = ctx.message.video || ctx.message.video_note;
-        const duration = video.duration; 
 
-        if (duration < 30) {
-            return sendReply(ctx, MESSAGES.video.tooShort(duration));
+        if (!reps || reps <= 0) {
+            return sendReply(ctx, MESSAGES.video.noCaption); // Використовуємо меседж з нашого файлу
         }
+
+        const { user, personalTarget, personalDay } = await getUserContext(userId, userName);
 
         const currentCompleted = user ? user.completed : 0;
         const isDoingChallenge = user && user.canRestore;
 
-        if (currentCompleted >= personalDay && !isDoingChallenge) {
-            return sendReply(ctx, MESSAGES.video.alreadyDone(userName, currentCompleted, personalDay));
-        }
+        // if (currentCompleted >= personalDay && !isDoingChallenge) {
+        //     return sendReply(ctx, MESSAGES.video.alreadyDone(userName, currentCompleted, personalDay));
+        // }
 
         // Визначаємо, чи є борг 2+ дні на момент завантаження
         const isCurrentlyDebtor = (personalDay - currentCompleted) >= 2;
 
-        const saveProgress = async (sec) => {
+        const saveProgress = async (reps) => {
             // Розрахунок стріку (якщо борг — 1, якщо вчасно — +1)
             let newStreak = user && !isCurrentlyDebtor ? (user.currentStreak || 0) + 1 : 1;
             const newMaxStreak = Math.max(user?.maxStreak || 0, newStreak);
@@ -66,18 +67,16 @@ bot.on(['video', 'video_note'], async (ctx) => {
                     // Додаємо +1 день ТІЛЬКИ якщо сьогоднішній план ще НЕ був закритий.
                     // Якщо план закритий (наприклад, челендж здається окремо) — додаємо 0.
                     completed: (user?.completed || 0) >= personalDay ? 0 : 1, 
-                    totalSeconds: sec
+                    totalReps: reps
                 }
             };
         
-            const updatedDoc = await User.findOneAndUpdate({ userId }, update, { upsert: true, new: true });
+            const updatedDoc = await User.findOneAndUpdate({ userId }, update, { upsert: true, returnDocument: 'after' });
             return {updated: updatedDoc};
         };
 
-        const diff = Math.abs(duration - personalTarget);
-
-        if (diff <= 5 || duration >= personalTarget) {
-            const { updated: updatedUser } = await saveProgress(duration);
+        if (reps >= personalTarget) {
+            const { updated: updatedUser } = await saveProgress(reps);
             
             let challengeText = "";
             let extraMarkup = null;
@@ -85,7 +84,6 @@ bot.on(['video', 'video_note'], async (ctx) => {
             const isCleanNow = (personalDay - updatedUser.completed) < 2;
 
             if (isCurrentlyDebtor && isCleanNow && updatedUser.isBroken) {
-                console.log('fire back propose');
                 // Дозволяємо відновити вогник
                 await User.updateOne({ userId }, { $set: { canRestore: true } });
                 
@@ -116,7 +114,7 @@ bot.on(['video', 'video_note'], async (ctx) => {
             }
 
             // 2. ФОРМУВАННЯ СТАТУСУ
-            const finalMsg = MESSAGES.video.finalMsg(updatedUser, personalDay, duration, personalTarget)
+            const finalMsg = MESSAGES.video.finalMsg(updatedUser, personalDay, reps, personalTarget)
             
             // 3. ВІДПРАВКА (Одним повідомленням)
             await ctx.reply(finalMsg, { 
@@ -126,7 +124,7 @@ bot.on(['video', 'video_note'], async (ctx) => {
             });
 
         } else {
-            sendReply(ctx, MESSAGES.video.almost(duration, personalTarget));
+            sendReply(ctx, MESSAGES.video.almost(reps, personalTarget));
         }
     } catch (e) {
         console.error('Помилка при збереженні відео:', e);
@@ -138,12 +136,8 @@ bot.on(['video', 'video_note'], async (ctx) => {
 
 bot.command('stats', async (ctx) => {
     try {
-        // 1. Отримуємо ліміт один раз на початку
-        const config = await Config.findOne();
-        const limit = config ? config.challengeLimit : 27;
-
         // Отримуємо загальний день (враховуючи ліміт)
-        const daysPassed = await getUserDaysPassed('Europe/Kyiv');
+        const daysPassed = getUserDaysPassed('Europe/Kyiv');
         const targetToday = getTargetForToday(daysPassed);
         
         let users = await User.find();
@@ -151,7 +145,7 @@ bot.command('stats', async (ctx) => {
         // 2. Використовуємо for...of для асинхронних оновлень в базі
         for (let u of users) {
             const userTZ = u.timezone || 'Europe/Kyiv';
-            const personalDays = await getUserDaysPassed(userTZ); // Це вже враховує ліміт з бази
+            const personalDays = getUserDaysPassed(userTZ); // Це вже враховує ліміт з бази
             
             // Зберігаємо розрахований день прямо в об'єкті юзера, щоб не рахувати знову
             u.tempPersonalDay = personalDays; 
@@ -178,7 +172,7 @@ bot.command('stats', async (ctx) => {
 
             if (aIsDebtor && !bIsDebtor) return 1;
             if (!aIsDebtor && bIsDebtor) return -1;
-            return b.totalSeconds - a.totalSeconds;
+            return b.totalReps - a.totalReps;
         });
 
         // 4. Формуємо повідомлення (використовуємо звичайний for, бо дані вже розраховані)
@@ -217,12 +211,9 @@ bot.command('guide', (ctx) => {
 
 bot.command('remind', async (ctx) => {
     try {
-        // 1. Отримуємо актуальний ліміт
-        const config = await Config.findOne();
-        const limit = config ? config.challengeLimit : 27;
 
         const users = await User.find();
-        const daysPassed = await getUserDaysPassed('Europe/Kyiv');
+        const daysPassed = getUserDaysPassed('Europe/Kyiv');
         const targetToday = getTargetForToday(daysPassed);
 
         let ironList = '';
@@ -234,7 +225,7 @@ bot.command('remind', async (ctx) => {
         for (const u of users) {
             const userTZ = u.timezone || 'Europe/Kyiv';
             // Чекаємо на розрахунок дня (враховуючи асинхронність та ліміт бази)
-            const personalDays = await getUserDaysPassed(userTZ);
+            const personalDays = getUserDaysPassed(userTZ);
 
             const diff = personalDays - u.completed;
             const userTag = `[${u.name || 'Атлет'}](tg://user?id=${u.userId})`;
@@ -257,8 +248,8 @@ bot.command('remind', async (ctx) => {
         }
 
         // 3. Формуємо повідомлення (враховуємо ліміт у заголовку, якщо хочеш)
-        let msg = `📣 **ЗБІР ПО ТРИВОЗІ** (Ціль: ${limit} дн.)\n`;
-        msg += `⏱ План на сьогодні: **${targetToday} сек** \n`;
+        let msg = `📣 **ЗБІР ПО ТРИВОЗІ** (Ціль: ${CHALLENGE_LIMIT} дн.)\n`;
+        msg += `⏱ План на сьогодні: **${targetToday} разів** \n`;
         msg += `--------------------------\n\n`;
 
         if (ironList) msg += `🔥 **БИТВА ЗА ВОГНИКИ:**\n${ironList}\n`;
@@ -277,7 +268,7 @@ bot.command('remind', async (ctx) => {
 
 bot.command('challenge', async (ctx) => {
     const userId = ctx.from.id;
-    const daysPassed = await getUserDaysPassed();
+    const daysPassed = getUserDaysPassed();
     let user = await User.findOne({ userId });
 
     if (!user || !user.isBroken) {
@@ -316,8 +307,8 @@ bot.action(/vote_(yes|no)_(\d+)/, async (ctx) => {
     const targetUserId = ctx.match[2];
     const voterId = ctx.from.id;
     const voterName = ctx.from.first_name || 'Анонім';
+    let text = ctx.callbackQuery.message.text;
 
-    // 1. Захист від самострілу
     if (voterId == targetUserId) {
         return ctx.answerCbQuery(MESSAGES.challenge.blockVote, { show_alert: true });
     }
@@ -326,8 +317,6 @@ bot.action(/vote_(yes|no)_(\d+)/, async (ctx) => {
     if (!targetUser || !targetUser.canRestore) {
         return ctx.answerCbQuery(MESSAGES.challenge.votingNotActive);
     }
-
-    let text = ctx.callbackQuery.message.text;
 
     // 2. Перевірка, чи цей юзер вже голосував (шукаємо його ім'я в тексті)
     if (text.includes(voterName)) {
@@ -340,9 +329,8 @@ bot.action(/vote_(yes|no)_(\d+)/, async (ctx) => {
         const VOTE_THRESHOLD = 3; 
 
         if (yesCount >= VOTE_THRESHOLD) {
-            // ФІНАЛ: Відновлення стріку
-            const potentialStreak = (targetUser.maxStreak || 0) + 1;
-            const restoredStreak = Math.min(potentialStreak, targetUser.completed);
+
+            const restoredStreak = targetUser.maxStreak || 1;
 
             await User.updateOne(
                 { userId: targetUserId }, 
@@ -350,8 +338,7 @@ bot.action(/vote_(yes|no)_(\d+)/, async (ctx) => {
                     isBroken: false, 
                     canRestore: false, 
                     activeChallenge: null, 
-                    currentStreak: restoredStreak,
-                    maxStreak: Math.max(targetUser.maxStreak, restoredStreak)
+                    currentStreak: restoredStreak
                 }}
             );
             
@@ -372,75 +359,6 @@ bot.action(/vote_(yes|no)_(\d+)/, async (ctx) => {
         await User.updateOne({ userId: targetUserId }, { $set: { canRestore: false, activeChallenge: null } });
         await ctx.editMessageText(MESSAGES.challenge.loss + `\n(Скасовано: ${voterName} ❌)`, { parse_mode: 'HTML' });
         return ctx.answerCbQuery(MESSAGES.challenge.cancelAttempt);
-    }
-});
-
-bot.command('start_vote_40', async (ctx) => {
-    // Тільки ти (або адмін) можеш це запустити
-    const messageText = `🎉 <b>ВІТАЮ ВСІХ АТЛЕТІВ! 27 ДНІВ ПОЗАДУ!</b>\n\n` +
-    `Ви — справжні машини. План виконано, результат закріплено. Але чи готові ми до справжнього виклику — <b>40 днів</b>?\n\n` +
-    `Пропоную продовжити наш челендж. Нам потрібно 3 голоси «ЗА», щоб офіційно подовжити термін.\n\n` +
-    `<b>Голосуємо:</b>`;
-
-    await ctx.reply(messageText, {
-        parse_mode: 'HTML',
-        reply_markup: {
-            inline_keyboard: [
-                [
-                    { text: "🔥 Йдемо до 40!", callback_data: "vote40_yes" },
-                    { text: "🏠 Мені вистачить", callback_data: "vote40_no" }
-                ]
-            ]
-        }
-    });
-});
-
-// --- ОБРОБКА ГОЛОСУВАННЯ ЗА 40 ДНІВ ---
-bot.action(/vote40_(yes|no)/, async (ctx) => {
-    const action = ctx.match[1];
-    const voterName = ctx.from.first_name || 'Анонім';
-    let text = ctx.callbackQuery.message.text;
-
-    // Перевірка, щоб один юзер не голосував двічі (по нікнейму в тексті)
-    if (text.includes(voterName)) {
-        return ctx.answerCbQuery("Ти вже проголосував! 😉");
-    }
-
-    if (action === 'yes') {
-        // Рахуємо кількість галочок ✅ у тексті
-        let yesCount = (text.match(/✅/g) || []).length + 1;
-        const THRESHOLD = 1; // Треба 3 голоси
-
-        if (yesCount >= THRESHOLD) {
-            // 🚀 ФІНАЛ: Оновлюємо базу та текст
-            try {
-                await Config.findOneAndUpdate(
-                    {}, 
-                    { challengeLimit: 40, isExtended: true, updatedAt: new Date() }, 
-                    { upsert: true }
-                );
-
-                await ctx.editMessageText(
-                    `🚀 <b>РІШЕННЯ ПРИЙНЯТО!</b>\n\nНаша нова ціль — <b>40 ДНІВ</b>. Назад шляху немає! Тільки вперед! 🔥`, 
-                    { parse_mode: 'HTML' }
-                );
-                return ctx.answerCbQuery("Ціль оновлено до 40 днів!");
-            } catch (err) {
-                console.error(err);
-                return ctx.answerCbQuery("Помилка оновлення бази.");
-            }
-        } else {
-            // ПРОМІЖНИЙ ЕТАП: Додаємо нікнейм у список під текстом
-            const updatedText = text + `\n✅ ${voterName}`;
-            await ctx.editMessageText(updatedText, {
-                reply_markup: ctx.callbackQuery.message.reply_markup,
-                parse_mode: 'HTML'
-            });
-            return ctx.answerCbQuery("Голос зараховано!");
-        }
-    } else {
-        // Якщо натиснули "Достатньо"
-        return ctx.answerCbQuery("Думку прийнято, чекаємо рішення більшості.");
     }
 });
 
