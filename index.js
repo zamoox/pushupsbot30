@@ -400,7 +400,7 @@ bot.action(/setmode_(.+)/, async (ctx) => {
         );
         
         await ctx.answerCbQuery(`Режим ${newMode} обрано!`);
-        await ctx.editMessageText(MESSAGES.settings.modeSelected(newMode), { parse_mode: 'HTML' });
+        await ctx.editMessageText(MESSAGES.settings.modeSelected(newMode, userName), { parse_mode: 'HTML' });
     } catch (e) {
         console.error(e);
         await ctx.answerCbQuery("Помилка при збереженні.");
