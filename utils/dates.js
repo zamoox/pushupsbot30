@@ -17,22 +17,28 @@ const getUserDaysPassed = (timezone = 'Europe/Kyiv') => {
 const getTargetForToday = (day, mode = 'normal') => {
     const d = parseInt(day);
     
+    // Налаштування для кожного режиму
     const settings = {
-        easy:   { base: 5,  step: 1, period: 3 }, // Хвиля 3 дні
-        normal: { base: 10, step: 1, period: 4 }, // Хвиля 4 дні
-        hard:   { base: 10, step: 2, period: 4 }  // Хвиля 4 дні
+        easy:   { base: 5,  step: 1, period: 3, threshold: 10 }, 
+        normal: { base: 10, step: 1, period: 4, threshold: 15 }, 
+        hard:   { base: 10, step: 2, period: 4, threshold: 15 }
     };
 
-    const { base, step, period } = settings[mode] || settings.normal;
-    const WAVE_THRESHOLD = 15; // Поріг активації відкатів
+    const { base, step, period, threshold } = settings[mode] || settings.normal;
 
-    // 1. Рахуємо лінійну ціль
+    // 1. Рахуємо базову лінійну ціль
     const linearTarget = base + (d - 1) * step;
 
-    // 2. Перевіряємо умови для відкату:
-    // - День кратний періоду (3 або 4)
-    // - Поточна лінійна ціль БІЛЬША за поріг (15)
-    if (d % period === 0 && linearTarget > WAVE_THRESHOLD) {
+    // 2. ПЕРЕВІРКА НА ФІНАЛЬНИЙ ДЕНЬ
+    // Останній день (30) завжди лінійний максимум без відкатів
+    if (d === 30) return linearTarget;
+
+    // 3. ЛОГІКА ВІДКАТУ
+    // Відкат спрацьовує, якщо:
+    // - День кратний періоду (3 для easy, 4 для інших)
+    // - Лінійна ціль перевищила встановлений поріг (threshold)
+    if (d % period === 0 && linearTarget > threshold) {
+        // Розрахунок відкату: половина від цілі вчорашнього дня
         const previousDayTarget = base + (d - 2) * step;
         return Math.max(base, Math.floor(previousDayTarget / 2));
     }
