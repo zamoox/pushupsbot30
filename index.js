@@ -33,10 +33,9 @@ bot.on(['video', 'video_note'], async (ctx) => {
         const caption = ctx.message.caption || ""; 
         const match = caption.match(/\d+/); 
         const reps = match ? parseInt(match[0], 10) : 0; 
-        const video = ctx.message.video || ctx.message.video_note;
 
         if (!reps || reps <= 0) {
-            return sendReply(ctx, MESSAGES.video.noCaption); // Використовуємо меседж з нашого файлу
+            return sendReply(ctx, MESSAGES.video.noCaption);
         }
 
         const { user, personalTarget, personalDay } = await getUserContext(userId, userName);
@@ -48,11 +47,9 @@ bot.on(['video', 'video_note'], async (ctx) => {
             return sendReply(ctx, MESSAGES.video.alreadyDone(userName, currentCompleted, personalDay));
         }
 
-        // Визначаємо, чи є борг 2+ дні на момент завантаження
         const isCurrentlyDebtor = (personalDay - currentCompleted) >= 2;
 
         const saveProgress = async (reps) => {
-            // Розрахунок стріку (якщо борг — 1, якщо вчасно — +1)
             let newStreak = user && !isCurrentlyDebtor ? (user.currentStreak || 0) + 1 : 1;
             const newMaxStreak = Math.max(user?.maxStreak || 0, newStreak);
             
@@ -63,8 +60,6 @@ bot.on(['video', 'video_note'], async (ctx) => {
                     isBroken: isCurrentlyDebtor || (user?.isBroken ?? false)
                 },
                 $inc: { 
-                    // Додаємо +1 день ТІЛЬКИ якщо сьогоднішній план ще НЕ був закритий.
-                    // Якщо план закритий (наприклад, челендж здається окремо) — додаємо 0.
                     completed: (user?.completed || 0) >= personalDay ? 0 : 1, 
                     totalReps: reps
                 }
@@ -82,40 +77,38 @@ bot.on(['video', 'video_note'], async (ctx) => {
 
             const isCleanNow = (personalDay - updatedUser.completed) < 2;
 
+            // КНОПКА "ПОВЕРНУТИ ВОГНИК"
             if (isCurrentlyDebtor && isCleanNow && updatedUser.isBroken) {
-                // Дозволяємо відновити вогник
                 await User.updateOne({ userId }, { $set: { canRestore: true } });
                 
                 challengeText = `\n\n${MESSAGES.challenge.offerRestore}`;
                 extraMarkup = {
                     inline_keyboard: [
-                        [{ text: "👊 Повернути вогник", callback_data: 'accept_challenge' }]
+                        [{ text: "👊 Повернути вогник", callback_data: `accept_challenge_${userId}` }]
                     ]
                 };
             }
 
-            // 1. ЛОГІКА ЧЕЛЕНДЖУ
+            // ЛОГІКА ПЕРЕВІРКИ ЧЕЛЕНДЖУ (ГОЛОСУВАННЯ)
             if (updatedUser.canRestore && updatedUser.activeChallenge) {
                 if (updatedUser.completed >= personalDay) {
-                    // Формуємо блок голосування
                     challengeText = MESSAGES.challenge.poll(updatedUser.activeChallenge, userName);
                     extraMarkup = {
                         inline_keyboard: [
-                            [{ text: "✅ Гідно", callback_data: `vote_yes_${userId}` },
-                            { text: "❌ Халява", callback_data: `vote_no_${userId}` }]
+                            [
+                                { text: "✅ Гідно", callback_data: `vote_yes_${userId}` },
+                                { text: "❌ Халява", callback_data: `vote_no_${userId}` }
+                            ]
                         ]
                     };
                 } else {
-                    // Скидаємо, якщо борг лишився
                     await User.updateOne({ userId }, { $set: { canRestore: false, activeChallenge: null } });
                     challengeText = MESSAGES.challenge.debtStillExists;
                 }
             }
 
-            // 2. ФОРМУВАННЯ СТАТУСУ
-            const finalMsg = MESSAGES.video.finalMsg(updatedUser, personalDay, reps, personalTarget)
+            const finalMsg = MESSAGES.video.finalMsg(updatedUser, personalDay, reps, personalTarget) + challengeText;
             
-            // 3. ВІДПРАВКА (Одним повідомленням)
             await ctx.reply(finalMsg, { 
                 reply_to_message_id: ctx.message.message_id,
                 reply_markup: extraMarkup,
@@ -135,9 +128,7 @@ bot.on(['video', 'video_note'], async (ctx) => {
 
 bot.command('stats', async (ctx) => {
     try {
-        // Отримуємо загальний день (враховуючи ліміт)
         const daysPassed = getUserDaysPassed('Europe/Kyiv');
-
         const allTargets = {
             easy: getTargetForToday(daysPassed, 'easy'),
             normal: getTargetForToday(daysPassed, 'normal'),
@@ -146,174 +137,80 @@ bot.command('stats', async (ctx) => {
         
         let users = await User.find();
 
-        // 2. Використовуємо for...of для асинхронних оновлень в базі
         for (let u of users) {
             const userTZ = u.timezone || 'Europe/Kyiv';
-            const personalDays = getUserDaysPassed(userTZ); // Це вже враховує ліміт з бази
-            
-            // Зберігаємо розрахований день прямо в об'єкті юзера, щоб не рахувати знову
+            const personalDays = getUserDaysPassed(userTZ);
             u.tempPersonalDay = personalDays; 
-            
             const diff = personalDays - u.completed;
 
             if (diff >= 2 && (u.currentStreak > 0 || !u.isBroken)) {
-                await User.updateOne(
-                    { _id: u._id }, 
-                    { $set: { currentStreak: 0, isBroken: true } }
-                );
+                await User.updateOne({ _id: u._id }, { $set: { currentStreak: 0, isBroken: true } });
                 u.currentStreak = 0;
                 u.isBroken = true;
             }
         }
 
-        // 3. ТЕПЕР сортуємо (синхронно, бо дані вже є в u.tempPersonalDay)
         users.sort((a, b) => {
-            const aDiff = a.tempPersonalDay - a.completed;
-            const bDiff = b.tempPersonalDay - b.completed;
-            
-            const aIsDebtor = aDiff >= 2;
-            const bIsDebtor = bDiff >= 2;
-
+            const aIsDebtor = (a.tempPersonalDay - a.completed) >= 2;
+            const bIsDebtor = (b.tempPersonalDay - b.completed) >= 2;
             if (aIsDebtor && !bIsDebtor) return 1;
             if (!aIsDebtor && bIsDebtor) return -1;
             return b.totalReps - a.totalReps;
         });
 
-        // 4. Формуємо повідомлення (використовуємо звичайний for, бо дані вже розраховані)
         let msg = MESSAGES.stats.statsHeader(daysPassed, allTargets);
 
         if (users.length === 0) {
             msg += MESSAGES.stats.noStats;
         } else {
             for (const [position, user] of users.entries()) {
-                const personalDays = user.tempPersonalDay; // Беремо вже готове значення
-                const diff = personalDays - user.completed;
-                const isDebtor = diff >= 2;
-
-                msg += MESSAGES.stats.userInfo(user, position, isDebtor, diff, personalDays);
+                const diff = user.tempPersonalDay - user.completed;
+                msg += MESSAGES.stats.userInfo(user, position, diff >= 2, diff, user.tempPersonalDay);
             }
         }
 
-        const prefix = typeof testMode !== 'undefined' && testMode ? '🛠 [TEST MODE]\n' : '';
+        const prefix = testMode ? '🛠 [TEST MODE]\n' : '';
         await ctx.reply(prefix + msg, { parse_mode: 'HTML' });
-
     } catch (e) {
         console.error('Помилка в stats:', e);
         ctx.reply("❌ Помилка статистики.");
     }
 });
 
-// --- КОМАНДА ПРАВИЛ ---
-bot.command('guide', (ctx) => {
+// --- ВІДНОВЛЕННЯ ВОГНИКА (ACCEPT) ---
+bot.action(/accept_challenge_(\d+)/, async (ctx) => {
+    const targetUserId = parseInt(ctx.match[1], 10);
+    if (ctx.from.id !== targetUserId) {
+        return ctx.answerCbQuery("❌ Це не твій виклик!", { show_alert: true });
+    }
+
     try {
-        ctx.reply(MESSAGES.guide.text, { parse_mode: 'HTML' });
+        const user = await User.findOne({ userId: targetUserId });
+        const personalDay = getUserDaysPassed(user?.timezone || 'Europe/Kyiv');
+        if ((personalDay - (user?.completed || 0)) >= 2) {
+            return ctx.answerCbQuery("💀 Закрий борги спочатку!", { show_alert: true });
+        }
+
+        const challenge = getRandomChallenge();
+        await User.updateOne({ userId: targetUserId }, { $set: { canRestore: true, activeChallenge: challenge } });
+        
+        await ctx.answerCbQuery();
+        await ctx.editMessageText(MESSAGES.challenge.accept(challenge), { parse_mode: 'HTML' });
     } catch (e) {
-        console.error("Помилка в rules:", e);
-        ctx.reply("❌ Не вдалося завантажити правила.");
+        console.error(e);
+        ctx.answerCbQuery("Помилка...");
     }
 });
 
-bot.command('remind', async (ctx) => {
-    try {
-
-        const users = await User.find();
-        const daysPassed = getUserDaysPassed('Europe/Kyiv');
-        const targetToday = getTargetForToday(daysPassed);
-
-        let ironList = '';
-        let debtList = '';
-        let heavyDebtList = '';
-        let hasAnyDebtor = false;
-
-        // 2. Використовуємо for...of для коректної роботи await
-        for (const u of users) {
-            const userTZ = u.timezone || 'Europe/Kyiv';
-            // Чекаємо на розрахунок дня (враховуючи асинхронність та ліміт бази)
-            const personalDays = getUserDaysPassed(userTZ);
-
-            const diff = personalDays - u.completed;
-            const userTag = `[${u.name || 'Атлет'}](tg://user?id=${u.userId})`;
-
-            if (diff >= 1) {
-                hasAnyDebtor = true;
-
-                if (diff >= 5) {
-                    heavyDebtList += `💀 ${userTag} — борг **${diff} дн.** (Повна яма)\n`;
-                } else if (diff >= 2) {
-                    debtList += `🔻 ${userTag} — борг ${diff} дн. (Вогник 🔥 потух)\n`;
-                } else if (diff === 1) {
-                    ironList += `⚠️ ${userTag} — сьогодні дедлайн, або прощавай вогник!\n`;
-                }
-            }
-        }
-
-        if (!hasAnyDebtor) {
-            return ctx.reply("😎 **Всі красунчики!** Боржників немає, вогники горять. Від душі!");
-        }
-
-        // 3. Формуємо повідомлення (враховуємо ліміт у заголовку, якщо хочеш)
-        let msg = `📣 **ЗБІР ПО ТРИВОЗІ** (Ціль: ${CHALLENGE_LIMIT} дн.)\n`;
-        msg += `⏱ План на сьогодні: **${targetToday} разів** \n`;
-        msg += `--------------------------\n\n`;
-
-        if (ironList) msg += `🔥 **БИТВА ЗА ВОГНИКИ:**\n${ironList}\n`;
-        if (debtList) msg += `📉 **СПИСОК ШТРАФНИКІВ:**\n${debtList}\n`;
-        if (heavyDebtList) msg += `🚨 **ЖОРСТКІ ЗАВАЛИ:**\n${heavyDebtList}\n`;
-
-        msg += `\nПідтягуйте хвости, пацани! Чекаємо відоси! 👇`;
-
-        await ctx.reply(msg, { parse_mode: 'Markdown' });
-
-    } catch (e) {
-        console.error('Помилка в remind:', e);
-        ctx.reply("❌ Бот шось тупить, не зміг нагадати.");
-    }
-});
-
-bot.command('challenge', async (ctx) => {
-    const userId = ctx.from.id;
-    const daysPassed = getUserDaysPassed();
-    let user = await User.findOne({ userId });
-
-    if (!user || !user.isBroken) {
-        return ctx.reply(MESSAGES.challenge.notNeeded);
-    }
-
-    // ГОЛОВНА ПЕРЕВІРКА: чи є борг на цей момент
-    if (user.completed + 1 < daysPassed) {
-        const debt = daysPassed - user.completed - 1;
-        const word = debt === 1 ? 'звіт' : (debt < 5 ? 'звіти' : 'звітів');
-        return ctx.reply(MESSAGES.challenge.locked(debt, word));
-    }
-
-    // Дозволяємо активувати, якщо сьогодні ще НЕ здано (або якщо є невеликий борг)
-    const msg = MESSAGES.challenge.intro;
-
-    await ctx.reply(msg, {
-        parse_mode: 'Markdown',
-        reply_markup: {
-            inline_keyboard: [[{ text: MESSAGES.challenge.go, callback_data: 'accept_challenge' }]]
-        }
-    });
-});
-
-bot.action('accept_challenge', async (ctx) => {
-    const challenge = getRandomChallenge();
-    // Зберігаємо challenge в базу юзеру, щоб потім вивести в описі голосування
-    await User.updateOne({ userId: ctx.from.id }, { $set: { canRestore: true, activeChallenge: challenge } });
-    
-    await ctx.answerCbQuery();
-    await ctx.editMessageText(MESSAGES.challenge.accept(challenge));
-});
-
+// --- ГОЛОСУВАННЯ ---
 bot.action(/vote_(yes|no)_(\d+)/, async (ctx) => {
     const action = ctx.match[1];
-    const targetUserId = ctx.match[2];
+    const targetUserId = parseInt(ctx.match[2], 10);
     const voterId = ctx.from.id;
     const voterName = ctx.from.first_name || 'Анонім';
     let text = ctx.callbackQuery.message.text;
 
-    if (voterId == targetUserId) {
+    if (voterId === targetUserId) {
         return ctx.answerCbQuery(MESSAGES.challenge.blockVote, { show_alert: true });
     }
 
@@ -322,47 +219,31 @@ bot.action(/vote_(yes|no)_(\d+)/, async (ctx) => {
         return ctx.answerCbQuery(MESSAGES.challenge.votingNotActive);
     }
 
-    // 2. Перевірка, чи цей юзер вже голосував (шукаємо його ім'я в тексті)
     if (text.includes(voterName)) {
-        return ctx.answerCbQuery("Ти вже залишив свій голос! 😉", { show_alert: false });
+        return ctx.answerCbQuery("Ти вже голосував! 😉");
     }
 
     if (action === 'yes') {
-        // Рахуємо поточну кількість ✅
         let yesCount = (text.match(/✅/g) || []).length + 1;
         const VOTE_THRESHOLD = 3; 
 
         if (yesCount >= VOTE_THRESHOLD) {
-
             const restoredStreak = targetUser.maxStreak || 1;
-
             await User.updateOne(
                 { userId: targetUserId }, 
-                { $set: { 
-                    isBroken: false, 
-                    canRestore: false, 
-                    activeChallenge: null, 
-                    currentStreak: restoredStreak
-                }}
+                { $set: { isBroken: false, canRestore: false, activeChallenge: null, currentStreak: restoredStreak }}
             );
-            
             await ctx.editMessageText(MESSAGES.challenge.win(targetUser.name, restoredStreak), { parse_mode: 'HTML' });
-            return ctx.answerCbQuery("Рішення прийнято! Вогник горить! 🔥");
         } else {
-            // ПРОМІЖНИЙ ЕТАП: Додаємо ✅ та ім'я того, хто проголосував
-            const updatedText = text + `\n✅ ${voterName}`;
-            
-            await ctx.editMessageText(updatedText, {
+            await ctx.editMessageText(text + `\n✅ ${voterName}`, {
                 reply_markup: ctx.callbackQuery.message.reply_markup,
                 parse_mode: 'HTML'
             });
-            return ctx.answerCbQuery(MESSAGES.challenge.countVote);
+            ctx.answerCbQuery(MESSAGES.challenge.countVote);
         }
     } else {
-        // ВІДХИЛЕНО: Один голос "Проти" скасовує все (або можна теж зробити лічильник)
         await User.updateOne({ userId: targetUserId }, { $set: { canRestore: false, activeChallenge: null } });
         await ctx.editMessageText(MESSAGES.challenge.loss + `\n(Скасовано: ${voterName} ❌)`, { parse_mode: 'HTML' });
-        return ctx.answerCbQuery(MESSAGES.challenge.cancelAttempt);
     }
 });
 
@@ -381,61 +262,47 @@ bot.command(['start', 'mode'], async (ctx) => {
     });
 });
 
-// Обробка натискання кнопок
 bot.action(/setmode_(.+)/, async (ctx) => {
     const newMode = ctx.match[1];
     const userId = ctx.from.id;
-    const userName = ctx.from.first_name || 'Атлет'; // Беремо актуальне ім'я з ТГ
+    const userName = ctx.from.first_name || 'Атлет';
 
-    try {
-        await User.updateOne(
-            { userId }, 
-            { 
-                $set: { 
-                    mode: newMode,
-                    name: userName // Зберігаємо ім'я в документ юзера
-                } 
-            }, 
-            { upsert: true }
-        );
-        
-        await ctx.answerCbQuery(`Режим ${newMode} обрано!`);
-        await ctx.editMessageText(MESSAGES.settings.modeSelected(newMode, userName), { parse_mode: 'HTML' });
-    } catch (e) {
-        console.error(e);
-        await ctx.answerCbQuery("Помилка при збереженні.");
-    }
+    await User.updateOne({ userId }, { $set: { mode: newMode, name: userName } }, { upsert: true });
+    await ctx.answerCbQuery(`Режим ${newMode} обрано!`);
+    await ctx.editMessageText(MESSAGES.settings.modeSelected(newMode, userName), { parse_mode: 'HTML' });
 });
 
 bot.command('me', async (ctx) => {
-    try {
-        const userId = ctx.from.id;
-        const userName = ctx.from.first_name || 'Анонім';
+    const { user, personalDay } = await getUserContext(ctx.from.id, ctx.from.first_name);
+    if (!user) return ctx.reply("Спочатку обери режим /mode 🦾");
 
-        // Отримуємо контекст юзера (база, режим, поточний день)
-        const { user, personalDay, timezone } = await getUserContext(userId, userName);
-
-        if (!user) {
-            return ctx.reply("Спочатку обери режим за допомогою /mode 🦾");
-        }
-
-        // Розраховуємо цілі
-        const currentTarget = getTargetForToday(personalDay, user.mode);
-        const nextTarget = getTargetForToday(personalDay + 1, user.mode);
-
-        const msg = MESSAGES.personal.card(user, personalDay, currentTarget, nextTarget);
-
-        await ctx.reply(msg, { parse_mode: 'HTML' });
-    } catch (e) {
-        console.error('Помилка в команді /me:', e);
-        ctx.reply("❌ Не вдалося завантажити твій профіль.");
-    }
+    const currentTarget = getTargetForToday(personalDay, user.mode);
+    const nextTarget = getTargetForToday(personalDay + 1, user.mode);
+    await ctx.reply(MESSAGES.personal.card(user, personalDay, currentTarget, nextTarget), { parse_mode: 'HTML' });
 });
 
+bot.command('remind', async (ctx) => {
+    const users = await User.find();
+    const daysPassed = getUserDaysPassed('Europe/Kyiv');
+    let ironList = '', debtList = '', heavyDebtList = '';
 
-// --- 7. ЗАПУСК ---
+    for (const u of users) {
+        const pDays = getUserDaysPassed(u.timezone || 'Europe/Kyiv');
+        const diff = pDays - u.completed;
+        const tag = `[${u.name || 'Атлет'}](tg://user?id=${u.userId})`;
+
+        if (diff === 1) ironList += `⚠️ ${tag} — сьогодні дедлайн!\n`;
+        else if (diff >= 5) heavyDebtList += `💀 ${tag} — борг **${diff} дн.**\n`;
+        else if (diff >= 2) debtList += `🔻 ${tag} — борг ${diff} дн.\n`;
+    }
+
+    let msg = `📣 **ЗБІР ПО ТРИВОЗІ**\n--------------------------\n\n`;
+    if (ironList) msg += `🔥 **БИТВА ЗА ВОГНИКИ:**\n${ironList}\n`;
+    if (debtList) msg += `📉 **СПИСОК ШТРАФНИКІВ:**\n${debtList}\n`;
+    if (heavyDebtList) msg += `🚨 **ЖОРСТКІ ЗАВАЛИ:**\n${heavyDebtList}\n`;
+
+    await ctx.reply(msg || "😎 Всі красунчики!", { parse_mode: 'Markdown' });
+});
+
 bot.launch();
 console.log(`🚀 Бот стартує в режимі: ${testMode ? 'TEST' : 'PRODUCTION'}`);
-
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
