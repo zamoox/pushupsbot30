@@ -281,6 +281,43 @@ bot.command('me', async (ctx) => {
     await ctx.reply(MESSAGES.personal.card(user, personalDay, currentTarget, nextTarget), { parse_mode: 'HTML' });
 });
 
+// --- КОМАНДА ПРАВИЛ ---
+bot.command('guide', (ctx) => {
+    try {
+        ctx.reply(MESSAGES.guide.text, { parse_mode: 'HTML' });
+    } catch (e) {
+        console.error("Помилка в rules:", e);
+        ctx.reply("❌ Не вдалося завантажити правила.");
+    }
+});
+
+bot.command('challenge', async (ctx) => {
+    const userId = ctx.from.id;
+    const daysPassed = getUserDaysPassed();
+    let user = await User.findOne({ userId });
+
+    if (!user || !user.isBroken) {
+        return ctx.reply(MESSAGES.challenge.notNeeded);
+    }
+
+    // ГОЛОВНА ПЕРЕВІРКА: чи є борг на цей момент
+    if (user.completed + 1 < daysPassed) {
+        const debt = daysPassed - user.completed - 1;
+        const word = debt === 1 ? 'звіт' : (debt < 5 ? 'звіти' : 'звітів');
+        return ctx.reply(MESSAGES.challenge.locked(debt, word));
+    }
+
+    // Дозволяємо активувати, якщо сьогодні ще НЕ здано (або якщо є невеликий борг)
+    const msg = MESSAGES.challenge.intro;
+
+    await ctx.reply(msg, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [[{ text: MESSAGES.challenge.go, callback_data: 'accept_challenge' }]]
+        }
+    });
+});
+
 bot.command('remind', async (ctx) => {
     const users = await User.find();
     const daysPassed = getUserDaysPassed('Europe/Kyiv');
