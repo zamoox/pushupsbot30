@@ -19,9 +19,9 @@ const getTargetForToday = (day, mode = 'normal') => {
     
     // Налаштування для кожного режиму
     const settings = {
-        easy:   { base: 5,  step: 1, period: 3, threshold: 10 }, 
+        easy:   { base: 5,  step: 1, period: 3, threshold: 15 }, 
         normal: { base: 10, step: 1, period: 4, threshold: 15 }, 
-        hard:   { base: 10, step: 2, period: 4, threshold: 15 }
+        hard:   { base: 10, step: 2, period: 4, threshold: 20 }
     };
 
     const { base, step, period, threshold } = settings[mode] || settings.normal;
