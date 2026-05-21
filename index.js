@@ -145,8 +145,15 @@ bot.command('stats', async (ctx) => {
             u.tempPersonalDay = personalDays; 
             const diff = personalDays - u.completed;
 
-            if (diff >= 2 && (u.currentStreak > 0 || !u.isBroken)) {
-                await User.updateOne({ _id: u._id }, { $set: { currentStreak: 0, isBroken: true } });
+            if (diff >= 2 && (u.currentStreak > 0 || !u.isBroken || u.activeChallenge)) {
+                await User.updateOne({ _id: u._id }, { 
+                    $set: { 
+                        currentStreak: 0,
+                        isBroken: true,
+                        canRestore: false,
+                        activeChallenge: null
+                    } 
+                });
                 u.currentStreak = 0;
                 u.isBroken = true;
             }
