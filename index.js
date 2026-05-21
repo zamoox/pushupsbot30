@@ -111,11 +111,19 @@ bot.on(['video', 'video_note'], async (ctx) => {
 
             const finalMsg = MESSAGES.video.finalMsg(updatedUser, personalDay, reps, personalTarget);
             
-            await ctx.reply(finalMsg, { 
+            const sentMessage = await ctx.reply(finalMsg, { 
                 reply_to_message_id: ctx.message.message_id,
                 reply_markup: extraMarkup,
                 parse_mode: 'HTML' 
             });
+
+            if (extraMarkup && extraMarkup.inline_keyboard) {
+                try {
+                    await ctx.pinChatMessage(sentMessage.message_id, { disable_notification: true });
+                } catch (e) {
+                    console.error('Не вдалося закріпити повідомлення:', e);
+                }
+            }
 
         } else {
             sendReply(ctx, MESSAGES.video.almost(reps, personalTarget));
@@ -299,10 +307,10 @@ bot.action(/vote_(yes|no)_(\d+)/, async (ctx) => {
         return ctx.answerCbQuery(MESSAGES.challenge.blockVote, { show_alert: true });
     }
 
-    const targetUser = await User.findOne({ userId: targetUserId });
-    if (!targetUser || !targetUser.canRestore) {
-        return ctx.answerCbQuery(MESSAGES.challenge.votingNotActive);
-    }
+     const targetUser = await User.findOne({ userId: targetUserId });
+     if (!targetUser || !targetUser.canRestore) {
+         return ctx.answerCbQuery(MESSAGES.challenge.votingNotActive);
+     }
 
     // 2. Більш точна перевірка на повторне голосування (шукаємо ім'я як окремий рядок)
     if (text.split('\n').some(line => line.includes(voterName))) {
@@ -327,6 +335,13 @@ bot.action(/vote_(yes|no)_(\d+)/, async (ctx) => {
             
             // Використовуємо HTML, оскільки в MESSAGES він зазвичай такий
             await ctx.editMessageText(MESSAGES.challenge.win(targetUser.name, restoredStreak), { parse_mode: 'HTML' });
+
+            try {
+                await ctx.unpinChatMessage(msg.message_id);
+            } catch (e) {
+                console.error("Не вдалося відкріпити повідомлення:", e);
+            }
+
             return ctx.answerCbQuery("🔥 Челендж прийнято! Вогник відновлено.");
         } else {
             const updatedText = text + `\n✅ ${voterName}`;
