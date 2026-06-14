@@ -1,4 +1,45 @@
-const challenges = [
+const CHALLENGE_TYPES = {
+    pushups: {name: 'Віджимання', unit: 'разів'},
+    squats: {name: 'Прес / Скручування', unit: 'разів'},
+    abs: {name: 'Присідання', unit: 'разів'},
+}
+
+const getRandomCombinedChallenge = (lastType) => {
+    const types = Object.keys(CHALLENGE_TYPES); // ['pushups', 'squats', 'abs']
+    
+    // Якщо попереднього типу немає, ймовірності рівні (по ~33.3%)
+    if (!lastType || !types.includes(lastType)) {
+        const randomIndex = Math.floor(Math.random() * types.length);
+        return types[randomIndex];
+    }
+
+    // Розрахунок ймовірностей:
+    // Попередній тип зменшується вдвічі: (1/3) / 2 = 1/6
+    // Інші два ділять залишок (5/6) порівну: (5/6) / 2 = 5/12 кожен
+    const weights = {};
+    types.forEach(type => {
+        if (type === lastType) {
+            weights[type] = 1 / 6; // ~16.6%
+        } else {
+            weights[type] = 5 / 12; // ~41.6%
+        }
+    });
+
+    // Генерація на основі вагових коефіцієнтів (Weighted Random)
+    const random = Math.random();
+    let cumulativeWeight = 0;
+
+    for (const type of types) {
+        cumulativeWeight += weights[type];
+        if (random <= cumulativeWeight) {
+            return type;
+        }
+    }
+
+    return types[0];
+};
+
+const quizList = [
     "🥊 Бій з тінню : Після кожного 5-го віджимання вскакуй, пробивай жорстку «двієчку» (джеб-крос) у повітря і різко падай назад у віджимання.",
     "🐱 Жертва пухнастого : Віджимайся, уявляючи, що в тебе на спині сидить дуже енергійний кіт, який осудливо дивиться на твою техніку. На кожному 5-му повторенні кажи «Кис-кис, потерпи».",
     "🏍️ Прогрів двигуна : На опусканні роби рівний звук заведеного мотоцикла, а на кожному підйомі імітуй перемикання передачі з жорстким прогазуванням (Вжиииууу!).",
@@ -20,11 +61,13 @@ const challenges = [
 ];
 
 
-const getRandomChallenge = () => {
+const getRandomQuiz = () => {
     return challenges[Math.floor(Math.random() * challenges.length)];
 };
 
 module.exports = {
-    challenges,
-    getRandomChallenge
+    quizList,
+    getRandomQuiz,
+    getRandomCombinedChallenge,
+    CHALLENGE_TYPES
 };
