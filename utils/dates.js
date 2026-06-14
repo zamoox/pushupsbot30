@@ -15,9 +15,8 @@ const getUserDaysPassed = (timezone = 'Europe/Kyiv') => {
 };
 
 const getTargetForToday = (day, mode = 'normal') => {
-    const d = parseInt(day);
+    const totalDays = parseInt(day);
     
-    // Налаштування для кожного режиму
     const settings = {
         easy:   { base: 5,  step: 1, period: 3, threshold: 15 }, 
         normal: { base: 10, step: 1, period: 4, threshold: 15 }, 
@@ -26,24 +25,43 @@ const getTargetForToday = (day, mode = 'normal') => {
 
     const { base, step, period, threshold } = settings[mode] || settings.normal;
 
-    // 1. Рахуємо базову лінійну ціль
-    const linearTarget = base + (d - 1) * step;
+    let currentTarget = base;
+    let waveDayCounter = 1; // Рахує дні всередині поточної хвилі
 
-    // 2. ПЕРЕВІРКА НА ФІНАЛЬНИЙ ДЕНЬ
-    // Останній день (30) завжди лінійний максимум без відкатів
-    if (d === 30) return linearTarget;
+    // Симулюємо ріст день за днем від 1 до цільового дня
+    for (let d = 1; d <= totalDays; d++) {
+        // Останній день челенджу (30) ігнорує будь-які відкати
+        if (d === 30) {
+            // Рахуємо чистий лінійний максимум на 30-й день, якщо це кінець
+            // Або залишаємо поточну логіку накопичення. Для епічного фіналу:
+            const maxLinear = base + (30 - 1) * step;
+            return { reps: maxLinear, isRecovery: false };
+        }
 
-    // 3. ЛОГІКА ВІДКАТУ
-    // Відкат спрацьовує, якщо:
-    // - День кратний періоду (3 для easy, 4 для інших)
-    // - Лінійна ціль перевищила встановлений поріг (threshold)
-    if (d % period === 0 && linearTarget > threshold) {
-        // Розрахунок відкату: половина від цілі вчорашнього дня
-        const previousDayTarget = base + (d - 2) * step;
-        return Math.max(base, Math.floor(previousDayTarget / 2));
+        // Перевіряємо, чи поточний день є днем відкату
+        // Він має бути кратним періоду і перевищувати поріг
+        if (waveDayCounter === period && currentTarget > threshold) {
+            if (d === totalDays) {
+                // Розрахунок відкату: половина від цілі вчорашнього дня
+                const reps = Math.max(base, Math.floor((currentTarget - step) / 2));
+                return { reps, isRecovery: true };
+            }
+            
+            // Якщо цей день уже пройшов у симуляції:
+            // Зменшуємо ціль вдвічі для старту наступної хвилі
+            currentTarget = Math.max(base, Math.floor((currentTarget - step) / 2));
+            waveDayCounter = 1; // Скидаємо лічильник хвилі
+        } else {
+            if (d === totalDays) {
+                return { reps: currentTarget, isRecovery: false };
+            }
+            // Крокуємо вгору по порядку
+            currentTarget += step;
+            waveDayCounter++;
+        }
     }
 
-    return linearTarget;
+    return { reps: currentTarget, isRecovery: false };
 };
 
 module.exports = { 
