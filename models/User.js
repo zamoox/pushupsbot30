@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+const challengeTypeEnum = ['combined', 'pushups', 'squats', 'abs'];
+
 // Схема користувача
 const userSchema = new mongoose.Schema({
     userId: { type: Number, unique: true },
@@ -20,7 +22,11 @@ const userSchema = new mongoose.Schema({
     timezone: { type: String, default: 'Europe/Kyiv' },
 
     //Режим віджимань
-    mode: { type: String, enum: ['easy', 'normal', 'hard'], default: 'normal' }
+    mode: { type: String, enum: ['easy', 'normal', 'hard'], default: 'normal' },
+
+    challengeType: {type: String, enum: challengeTypeEnum, default: 'pushups'},
+
+    lastCombinedType: {type: String, enum: challengeTypeEnum, default: null},
 
 });
 
