@@ -212,10 +212,6 @@ const MESSAGES = {
                 ? `<b>${targetData.reps} ${exe.unit}</b> 🔋 (Фаза відновлення)` 
                 : `<b>${targetData.reps} ${exe.unit}</b>`;
 
-            const nextTargetText = nextTargetData.isRecovery 
-                ? `<b>${nextTargetData.reps} ${exe.unit}</b> 💤 (Завтра розвантаження!)` 
-                : `<b>${nextTargetData.reps} ${exe.unit}</b> ⏭`;
-
             // Безпечно дістаємо статистику по кожній дисципліні з нового об'єкта exercises
             const exStats = u.exercises || {};
             const pushupsCount = exStats.pushups || 0;
@@ -229,7 +225,7 @@ const MESSAGES = {
                 `──────────────\n\n` +
                 `🎯<b>Твоя ціль на сьогодні:</b> \n ${exe.name} ${todayTargetText}\n\n` +
                
-                `───────────────` +
+                `───────────────\n` +
                 `🔥 <b>Поточний стрік:</b> ${u.currentStreak} ${streakIcon}\n` +
                 `🏆 <b>Рекордний стрік:</b> ${u.maxStreak || 0}\n` +
                 `💪 <b>Загальний тоннаж:</b> ${u.totalReps || 0} повторень\n\n` +
