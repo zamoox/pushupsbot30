@@ -16,38 +16,51 @@ const getUserDaysPassed = (timezone = 'Europe/Kyiv') => {
 };
 
 /**
- * Чиста функція розрахунку цілі на основі підвантажених динамічних конфігів
+ * Оновлений чистий рушій симуляції хвиль
+ * @param {number|string} day - Поточний день
+ * @param {string} mode - Рівень складності (easy, normal, hard)
+ * @param {string} challengeType - Дисципліна (pushups, squats, abs)
+ */
+/**
+ * Чиста функція розрахунку цілі на основі динамічних конфігів
  */
 const getTargetForToday = (day, mode = 'normal', challengeType = 'pushups') => {
     const totalDays = parseInt(day, 10);
     
     // Динамічно дістаємо індивідуальні налаштування для вправи та режиму
-    const { base, step, period, threshold } = getConfigForExercise(challengeType, mode);
+    const config = getConfigForExercise(challengeType, mode);
+    const { base, step, period, threshold } = config;
 
     let currentTarget = base;
     let waveDayCounter = 1; // Лічильник днів усередині поточної хвилі
 
-    // Симулюємо прогресію день за днем
     for (let d = 1; d <= totalDays; d++) {
-        // Останній день челенджу (30) ігнорує будь-які відкати для фінального рекорду
-        if (d === 30) {
-            const maxLinear = base + (30 - 1) * step;
-            return { reps: maxLinear, isRecovery: false };
-        }
-
-        // Перевіряємо триггер хвилі (відкату)
-        if (waveDayCounter === period && currentTarget > threshold) {
-            if (d === totalDays) {
+        
+        // 1. ПЕРЕВІРКА: Якщо це цільовий день, розрахунок завершено — аналізуємо його стан
+        if (d === totalDays) {
+            // Останній день челенджу (30) завжди ігнорує відкати для епічного фіналу
+            if (d === 30) {
+                return { reps: currentTarget, isRecovery: false };
+            }
+            
+            // Перевіряємо, чи є поточний день точкою хвильового розвантаження
+            const isRecoveryDay = waveDayCounter === period && currentTarget > threshold;
+            if (isRecoveryDay) {
+                // Відкат: половина від накопиченого максимуму (за вирахуванням останнього кроку)
                 const reps = Math.max(base, Math.floor((currentTarget - step) / 2));
                 return { reps, isRecovery: true };
             }
             
+            return { reps: currentTarget, isRecovery: false };
+        }
+
+        // 2. МОДИФІКАЦІЯ СТАНУ ДЛЯ НАСТУПНОГО ДНЯ
+        // Симулюємо, що відбудеться з параметрами, коли цей день мине
+        if (waveDayCounter === period && currentTarget > threshold) {
             currentTarget = Math.max(base, Math.floor((currentTarget - step) / 2));
-            waveDayCounter = 1; 
+            currentTarget += step;
+            waveDayCounter = 2; // Хвиля скинулась, перший крок нової хвилі вже зроблено
         } else {
-            if (d === totalDays) {
-                return { reps: currentTarget, isRecovery: false };
-            }
             currentTarget += step;
             waveDayCounter++;
         }
