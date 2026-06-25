@@ -16,57 +16,31 @@ const getUserDaysPassed = (timezone = 'Europe/Kyiv') => {
 };
 
 /**
- * Оновлений чистий рушій симуляції хвиль
- * @param {number|string} day - Поточний день
- * @param {string} mode - Рівень складності (easy, normal, hard)
- * @param {string} challengeType - Дисципліна (pushups, squats, abs)
- */
-/**
- * Чиста функція розрахунку цілі на основі динамічних конфігів
+ * Чиста функція розрахунку цілі на основі динамічних конфігів з модульною симуляцією хвиль
  */
 const getTargetForToday = (day, mode = 'normal', challengeType = 'pushups') => {
     const totalDays = parseInt(day, 10);
-    
-    // Динамічно дістаємо індивідуальні налаштування для вправи та режиму
     const config = getConfigForExercise(challengeType, mode);
     const { base, step, period, threshold } = config;
 
-    let currentTarget = base;
-    let waveDayCounter = 1; // Лічильник днів усередині поточної хвилі
+    let effectiveCounter = 0; // скільки днів реально "просунули" прогресію
+    let result = { reps: base, isRecovery: false };
 
     for (let d = 1; d <= totalDays; d++) {
-        
-        // 1. ПЕРЕВІРКА: Якщо це цільовий день, розрахунок завершено — аналізуємо його стан
-        if (d === totalDays) {
-            // Останній день челенджу (30) завжди ігнорує відкати для епічного фіналу
-            if (d === 30) {
-                return { reps: currentTarget, isRecovery: false };
-            }
-            
-            // Перевіряємо, чи є поточний день точкою хвильового розвантаження
-            const isRecoveryDay = waveDayCounter === period && currentTarget > threshold;
-            if (isRecoveryDay) {
-                // Відкат: половина від накопиченого максимуму (за вирахуванням останнього кроку)
-                const reps = Math.max(base, Math.floor((currentTarget - step) / 2));
-                return { reps, isRecovery: true };
-            }
-            
-            return { reps: currentTarget, isRecovery: false };
-        }
+        const waveDayCounter = ((d - 1) % period) + 1;
+        const linearTarget = base + effectiveCounter * step;
+        const isRecoveryDay = d !== 30 && waveDayCounter === period && linearTarget > threshold;
 
-        // 2. МОДИФІКАЦІЯ СТАНУ ДЛЯ НАСТУПНОГО ДНЯ
-        // Симулюємо, що відбудеться з параметрами, коли цей день мине
-        if (waveDayCounter === period && currentTarget > threshold) {
-            currentTarget = Math.max(base, Math.floor((currentTarget - step) / 2));
-            currentTarget += step;
-            waveDayCounter = 2; // Хвиля скинулась, перший крок нової хвилі вже зроблено
+        if (isRecoveryDay) {
+            // День відновлення: показуємо занижене число,
+            // АЛЕ не рухаємо effectiveCounter — цей день "випадає" з рахунку
+            result = { reps: Math.max(base, Math.floor(linearTarget / 2)), isRecovery: true };
         } else {
-            currentTarget += step;
-            waveDayCounter++;
+            result = { reps: linearTarget, isRecovery: false };
+            effectiveCounter++; // тільки звичайні дні просувають прогресію
         }
     }
-
-    return { reps: currentTarget, isRecovery: false };
+    return result;
 };
 
 module.exports = { 

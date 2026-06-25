@@ -1,18 +1,18 @@
 const EXERCISE_CONFIG = {
     pushups: {
-        easy:   { base: 5,  step: 1, period: 3, threshold: 15 }, 
-        normal: { base: 10, step: 1, period: 4, threshold: 15 }, 
-        hard:   { base: 10, step: 2, period: 4, threshold: 20 }
+        easy:   { base: 5,  step: 1, period: 3, threshold: 14 }, 
+        normal: { base: 15, step: 1, period: 4, threshold: 22 }, 
+        hard:   { base: 15, step: 2, period: 4, threshold: 27 }
     },
     squats: {
-        easy:   { base: 5, step: 1, period: 3, threshold: 20 }, 
-        normal: { base: 10, step: 2, period: 4, threshold: 30 }, 
-        hard:   { base: 15, step: 3, period: 4, threshold: 40 }
+        easy:   { base: 5, step: 1, period: 3, threshold: 14 }, 
+        normal: { base: 10, step: 2, period: 4, threshold: 22 }, 
+        hard:   { base: 15, step: 3, period: 4, threshold: 27 }
     },
     abs: {
-        easy:   { base: 5, step: 1, period: 3, threshold: 25 }, 
-        normal: { base: 10, step: 2, period: 4, threshold: 30 }, 
-        hard:   { base: 20, step: 3, period: 4, threshold: 40 }
+        easy:   { base: 5, step: 1, period: 3, threshold: 14 }, 
+        normal: { base: 10, step: 2, period: 4, threshold: 22 }, 
+        hard:   { base: 20, step: 3, period: 4, threshold: 32 }
     }
 };
 

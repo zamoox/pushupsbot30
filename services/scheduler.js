@@ -57,7 +57,7 @@ const sendDailyReport = async (bot, chatId) => {
         let msg = `☀️ <b>НОВИЙ ДЕНЬ — НОВИЙ ВИКЛИК!</b>\n`;
         msg += `📅 <b>День челенджу: ${daysPassed}/30</b>\n`;
         msg += `🏋️‍♂️ Головна дисципліна сьогодні: <b>${globalExe.name}</b>\n`;
-        msg += `────────────────────────\n\n`;
+        msg += `──────────────\n\n`;
         msg += `Пацани, ось ваші індивідуальні норми на сьогодні:\n\n`;
 
         for (const user of users) {
@@ -77,7 +77,7 @@ const sendDailyReport = async (bot, chatId) => {
             msg += `└ 🔥 <b>Ціль:</b> ${targetData.reps} ${globalExe.unit}${recoveryMarker}\n\n`;
         }
 
-        msg += `────────────────────────\n`;
+        msg += `──────────────\n`;
         msg += `❗️ <b>Нагадування:</b> Здаєте відео та <b>ОБОВ'ЯЗКОВО</b> пишете чисту цифру виконаного у підписі.`;
 
         // 4. Anti-flood ліміти
