@@ -79,12 +79,12 @@ bot.action(/setmode_(.+)/, setModeAction);
 bot.action(/accept_challenge_(\d+)/, acceptChallengeAction);
 bot.action(/vote_(yes|no)_(\d+)/, voteAction);
 
-// 🔥 КРИТИЧНИЙ ФІКС: Ініціалізуємо автоматичний крон-планувальник на 00:00
+// 🔥 КРИТИЧНИЙ ФІКС ДЛЯ MASTER: Ініціалізуємо автоматичний крон-плановувальник на 00:00
 if (groupChatId) {
     initDailyScheduler(bot, groupChatId);
     console.log(`📅 Автоматичний планувальник 00:00 активовано для чату: ${groupChatId}`);
 } else {
-    console.log('⚠️ Увага: GROUP_CHAT_ID не знайдено в .env. Крон не запущено.');
+    console.log('⚠️ Увага: GROUP_CHAT_ID не знайдено в .env. Автоматичний розклад о 00:00 НЕ працюватиме.');
 }
 
 bot.launch();
