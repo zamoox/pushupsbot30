@@ -18,6 +18,9 @@ module.exports = async (ctx) => {
 
         const { user, personalTarget, personalDay } = await getUserContext(userId, userName);
 
+        // 🔥 ЗАЛІЗОБЕТОННИЙ ФІКС: Дисципліна береться строго з прорахованого контексту
+        const currentChallengeType = personalTarget.challengeType || user?.challengeType || 'pushups';
+
         const currentCompleted = user ? user.completed : 0;
         const isDoingChallenge = user && user.canRestore;
 
@@ -31,19 +34,20 @@ module.exports = async (ctx) => {
             let newStreak = user && !isCurrentlyDebtor ? (user.currentStreak || 0) + 1 : 1;
             const newMaxStreak = Math.max(user?.maxStreak || 0, newStreak);
             
-            // ДИНАМІЧНИЙ ШЛЯХ ДО КОНКРЕТНОЇ ДИСЦИПЛІНИ В БАЗІ
-            const exercisePath = `exercises.${user.challengeType || 'pushups'}`;
+            // Динамічний шлях до поточної дисципліни
+            const exercisePath = `exercises.${currentChallengeType}`;
             
             const update = {
                 $set: { 
                     currentStreak: newStreak,
                     maxStreak: newMaxStreak,
-                    isBroken: isCurrentlyDebtor || (user?.isBroken ?? false)
+                    isBroken: isCurrentlyDebtor || (user?.isBroken ?? false),
+                    challengeType: currentChallengeType // Одразу синхронізуємо тип
                 },
                 $inc: { 
                     completed: (user?.completed || 0) >= personalDay ? 0 : 1, 
-                    totalReps: reps,          // Загальний тоннаж
-                    [exercisePath]: reps      // Запис окремо в поточну дисципліну дня
+                    totalReps: reps,          
+                    [exercisePath]: reps      
                 }
             };
         
@@ -61,11 +65,9 @@ module.exports = async (ctx) => {
             const isCleanNow = (personalDay - updatedUser.completed) < 2;
 
             // 1. ЛОГІКА ПЕРЕВІРКИ ЧЕЛЕНДЖУ (СУД ГРОМАДИ)
-            // Цей блок має вищий пріоритет. Якщо юзер виконував спецзавдання — запускаємо голосування
             if (updatedUser.canRestore && updatedUser.activeChallenge) {
                 if (updatedUser.completed >= personalDay) {
-                    // Додаємо залізобетонне візуальне розмежування, щоб текст не нашаровувався
-                    challengeText = `\n\n\n────────────────────────\n` + 
+                    challengeText = `\n────────────────────────\n` + 
                                     `${MESSAGES.challenge.poll(updatedUser.activeChallenge, userName)}`;
 
                     extraMarkup = {
@@ -77,12 +79,11 @@ module.exports = async (ctx) => {
                         ]
                     };
                 } else {
-                    // Якщо відео здано, але лічильник днів каже, що боргів ще повно
                     await User.updateOne({ userId }, { $set: { canRestore: false, activeChallenge: null } });
                     challengeText = `\n\n${MESSAGES.challenge.debtStillExists}`;
                 }
             } 
-            // 2. КНОПКА "П ПОВЕРНУТИ ВОГНИК" (З'являється, тільки якщо немає активного голосування)
+            // 2. КНОПКА "ПОВЕРНУТИ ВОГНИК"
             else if (isCurrentlyDebtor && isCleanNow && updatedUser.isBroken) {
                 await User.updateOne({ userId }, { $set: { canRestore: true } });
                 
@@ -94,7 +95,10 @@ module.exports = async (ctx) => {
                 };
             }
 
-            // Збираємо до купи фінальний репорт
+            // 🔥 Передаємо ОНОВЛЕНИЙ тип прямо у функцію збірки повідомлення, щоб захиститися від null
+            // Тимчасово підміняємо тип в об'єкті, якщо старий був порожній
+            updatedUser.challengeType = currentChallengeType;
+
             const finalMsg = MESSAGES.video.finalMsg(updatedUser, personalDay, reps, personalTarget) + challengeText;
             
             const sentMessage = await ctx.reply(finalMsg, { 
@@ -103,7 +107,6 @@ module.exports = async (ctx) => {
                 parse_mode: 'HTML' 
             });
 
-            // Закріплюємо голосування в групі, щоб пацани не пропустили суд
             if (extraMarkup && extraMarkup.inline_keyboard && updatedUser.activeChallenge) {
                 try {
                     await ctx.pinChatMessage(sentMessage.message_id, { disable_notification: true });
@@ -113,8 +116,7 @@ module.exports = async (ctx) => {
             }
 
         } else {
-            // Передаємо чисту цифру цілі та тип вправи
-            sendReply(ctx, MESSAGES.video.almost(reps, personalTarget.reps, user.challengeType));
+            sendReply(ctx, MESSAGES.video.almost(reps, personalTarget.reps, currentChallengeType));
         }
     } catch (e) {
         console.error('Помилка при збереженні відео:', e);
