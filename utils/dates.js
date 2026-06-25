@@ -2,7 +2,7 @@
 const { DateTime } = require('luxon');
 const { getConfigForExercise } = require('./exerciseConfig');
 
-const START_DATE = { year: 2026, month: 6, day: 23 };
+const START_DATE = { year: 2026, month: 6, day: 25 };
 const CHALLENGE_LIMIT = 30; // Кінець челенджу
 
 const getUserDaysPassed = (timezone = 'Europe/Kyiv') => {
