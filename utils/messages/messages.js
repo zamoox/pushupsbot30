@@ -57,9 +57,8 @@ const MESSAGES = {
         finalMsg: (user, personalDay, reps, targetData) => {
             const exe = getExerciseInfo(user.challengeType);
             const status = MESSAGES.video.statusMessage(reps, targetData.reps, user.challengeType);
-            const challenge = user.activeChallenge ? `\n\n🎯 <b>АКТИВНЕ СПЕЦЗАВДАННЯ:</b>\n👉 ${user.activeChallenge}` : '';
             
-            return `${status}${challenge}\n\n` +
+            return `${status}\n\n` +
                    `📊 Результат: ${user.completed}/${personalDay} дн.\n` +
                    `🏋️‍♂️ Дисципліна дня: <b>${exe.name}</b>\n` +
                    `⚡️ Стрік: ${user.currentStreak} ${MESSAGES.video.icon(user.isBroken)} | Загальний тоннаж: ${user.totalReps || 0} ${exe.unit}.`;
@@ -74,7 +73,7 @@ const MESSAGES = {
 
             let header = `🏆 <b>ТАБЛИЦЯ ЛІДЕРІВ</b>\n`;
             header += `📅 <b>( День челенджу: ${day} / ${CHALLENGE_LIMIT} )</b>\n`;
-            header += `────────────────────────\n`;
+            header += `──────────────\n`;
             header += `🏋️‍♂️ Дисципліна дня: <b>${exe.name}</b>\n`;
             header += `🎯 <b>Цілі на сьогодні:</b>\n\n`;
 
@@ -90,7 +89,7 @@ const MESSAGES = {
                 header += ` ├ ${m.icon} ${m.name}: <b>${targetData.reps}</b> ${exe.unit}${recoveryIcon}\n`;
             });
 
-            header += `────────────────────────\n\n`;
+            header += `──────────────\n\n`;
             return header;
         },
         
@@ -188,7 +187,7 @@ const MESSAGES = {
             `Тобі треба здати ${debt} ${word}, щоб просто вийти в нуль. \n\n` +
             `Відіжми свої борги, і тільки тоді приходь за челенджем! 👊`,
 
-        poll: (challenge, name) => `\n\n🥁 СУД ГРОМАДИ!\n\nСпецзавдання: "${challenge}"\n\nЧи гідний ${name} повернути свій вогник 🔥?!`,
+        poll: (challenge, name) => `\n🥁 СУД ГРОМАДИ!\n\nСпецзавдання: "${challenge}"\n\nЧи гідний ${name} повернути свій вогник 🔥?!`,
 
         win: (name, streak) => `🔥 ВОГНИК ВОСКРЕС!\n\nГромада визнала, що ${name} — абсолютна машина. Рекордний стрік у **${streak}** 🔥 повністю відновлено!`,
 
@@ -255,6 +254,25 @@ const MESSAGES = {
                 "└ <i>Шлях титана. Для тих, хто готовий розривати залізо.</i>",
         
         modeSelected: (mode, userName) => `✅ <b> ${userName} активував режим ${mode.toUpperCase()}!</b>\nТвій план оновлено під поточну дисципліну. Вдалого тренування! 🦾`
+    },
+    scheduler: {
+        dailyReportHeader: (daysPassed, globalExeName) => {
+            return `☀️ <b>НОВИЙ ДЕНЬ — НОВИЙ ВИКЛИК!</b>\n` +
+                   `📅 <b>День челенджу: ${daysPassed}/30</b>\n` +
+                   `🏋️‍♂️ Головна дисципліна сьогодні: <b>${globalExeName}</b>\n` +
+                   `──────────────\n\n` +
+                   `Пацани, ось ваші індивідуальні норми на сьогодні:\n\n`;
+        },
+
+        dailyReportUserRow: (modeIcon, userTag, modeName, reps, unit, recoveryMarker) => {
+            return `👤 ${modeIcon} ${userTag} <i>(${modeName.toUpperCase()})</i>\n` +
+                   `└ 🔥 <b>Ціль:</b> ${reps} ${unit}${recoveryMarker}\n\n`;
+        },
+        
+        dailyReportFooter: () => {
+            return `──────────────\n` +
+                   `❗️ <b>Нагадування:</b> Здаєте відео та <b>ОБОВ'ЯЗКОВО</b> пишете чисту цифру виконаного у підписі.`;
+        }
     }
 };
 
