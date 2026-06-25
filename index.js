@@ -28,13 +28,20 @@ startServer();
 
 // 2. НАЛАШТУВАННЯ РЕЖИМУ
 const testMode = process.env.NODE_ENV !== 'production'; 
-const groupChatId = process.env.GROUP_CHAT_ID;
 const adminId = process.env.ADMIN_ID;
  
 // 3. ОТРИМАННЯ ТОКЕНУ БОТА ТА БАЗИ ДАНИХ
-const { token, mongoUri } =  testMode ? 
-{ token: process.env.TEST_BOT_TOKEN, mongoUri: process.env.TEST_MONGO_URI} :
-{ token: process.env.BOT_TOKEN, mongoUri: process.env.MONGO_URI};
+const { token, mongoUri, groupId } =  testMode ? 
+{ 
+    token: process.env.TEST_BOT_TOKEN, 
+    mongoUri: process.env.TEST_MONGO_URI, 
+    groupId: process.env.TEST_GROUP_CHAT_ID 
+} :
+{ 
+    token: process.env.BOT_TOKEN, 
+    mongoUri: process.env.MONGO_URI,
+    groupId: process.env.GROUP_CHAT_ID 
+};
 
 connectDB(mongoUri);
 
@@ -58,7 +65,7 @@ bot.command('run_daily', async (ctx) => {
         console.log(`ℹ️ Користувач @${ctx.from.username || ctx.from.id} запустив run_daily вручну.`);
         
         // Викликаємо функцію генерації звіту
-        const status = await sendDailyReport(bot, groupChatId);
+        const status = await sendDailyReport(bot, groupId);
         console.log(`📋 Результат ручного запуску: ${status}`);
         
     } catch (e) {
@@ -80,9 +87,9 @@ bot.action(/accept_challenge_(\d+)/, acceptChallengeAction);
 bot.action(/vote_(yes|no)_(\d+)/, voteAction);
 
 // 🔥 КРИТИЧНИЙ ФІКС ДЛЯ MASTER: Ініціалізуємо автоматичний крон-плановувальник на 00:00
-if (groupChatId) {
-    initDailyScheduler(bot, groupChatId);
-    console.log(`📅 Автоматичний планувальник 00:00 активовано для чату: ${groupChatId}`);
+if (groupId) {
+    initDailyScheduler(bot, groupId);
+    console.log(`📅 Автоматичний планувальник 00:00 активовано для чату: ${groupId}`);
 } else {
     console.log('⚠️ Увага: GROUP_CHAT_ID не знайдено в .env. Автоматичний розклад о 00:00 НЕ працюватиме.');
 }
