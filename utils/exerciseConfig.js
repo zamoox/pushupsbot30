@@ -5,12 +5,12 @@ const EXERCISE_CONFIG = {
         hard:   { base: 15, step: 2, period: 4, threshold: 27 }
     },
     squats: {
-        easy:   { base: 5, step: 1, period: 3, threshold: 14 }, 
+        easy:   { base: 10, step: 1, period: 3, threshold: 19 }, 
         normal: { base: 10, step: 2, period: 4, threshold: 22 }, 
         hard:   { base: 15, step: 3, period: 4, threshold: 27 }
     },
     abs: {
-        easy:   { base: 5, step: 1, period: 3, threshold: 14 }, 
+        easy:   { base: 10, step: 1, period: 3, threshold: 19 }, 
         normal: { base: 10, step: 2, period: 4, threshold: 22 }, 
         hard:   { base: 20, step: 3, period: 4, threshold: 32 }
     }
